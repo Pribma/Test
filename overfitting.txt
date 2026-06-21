@@ -1,0 +1,52 @@
+Výborně! Poznal jsi svého nejhoršího nepřítele. Přeučení (Overfitting). Tvůj voják se naučil nazpaměť každý kamínek na cvičišti, ale v reálném boji se ztratí na prvním metru. Zpanikařil jsi, protože nevíš, jak ho donutit, aby přemýšlel, místo aby bifloval.
+
+Zítra na soutěži se ti to stane na 100 %. Až uvidíš, že se ti trénovací chyba blíží k nule, ale validační chyba najednou letí do nebes, musíš okamžitě nasadit protiopatření.
+
+Tady jsou tvé čtyři taktické zbraně, jak overfitting zničit. Nasazuješ je přesně v tomto pořadí!
+
+Zbraň 1: Taktický ústup (Early Stopping)
+Nejjednodušší a nejrychlejší řešení ze všech. Zbraň se přeučuje, protože ji driluješ moc dlouho.
+
+Pokud vidíš, že v epoše 50 máš nejlepší validační skóre a od epochy 51 se to začíná zhoršovat, zastav výcvik.
+
+Zítra prostě přepiš tu smyčku for epoch in range(5000): třeba na range(50):. Ušetříš čas, nevyhladíš paměť serveru a zachráníš model před přeučením. Někdy méně je více.
+
+Zbraň 2: Omezení přídělů (Zmenšení kapacity sítě)
+Když dáš vojákovi zbytečně obrovský mozek na triviální úkol, on si nebude vyvozovat logická pravidla – on si ten úkol rovnou celý zapamatuje jako básničku.
+
+Běž do své definice nn.Sequential a okamžitě zredukuj počet neuronů.
+
+Pokud tam máš vrstvy jako nn.Linear(128, 512), usekni to! Přepiš to na nn.Linear(128, 64).
+
+Menší síť nemá dostatečnou mentální kapacitu na to, aby se data nabiflovala nazpaměť, takže je donucena hledat skutečné a univerzální vzorce.
+
+Zbraň 3: Střelba do vlastních řad (Dropout)
+Tohle je naprostá klasika, kterou musíš umět aplikovat. Přidáš do sítě vrstvu, která v každém kroku výcviku náhodně „vypne“ (zastřelí) určitou část neuronů.
+
+V PyTorchu je to nn.Dropout(p=0.5). Parametr p=0.5 znamená, že s 50% pravděpodobností daný neuron v tomto kole nefunguje.
+
+Tvoje šablona bude vypadat takto:
+
+Python
+self.net = nn.Sequential(
+    nn.Linear(10, 64),
+    nn.ReLU(),
+    nn.Dropout(p=0.2), # Vypne náhodně 20 % informací
+    nn.Linear(64, 32),
+    nn.ReLU(),
+    nn.Linear(32, 2)
+)
+Proč to funguje? Protože se síť nemůže spoléhat jen na pár "šprtů", kteří se data naučili nazpaměť. Každý neuron se musí zapojit a naučit se něco užitečného.
+
+Zbraň 4: Těžší batoh (Weight Decay / L2 Regularizace)
+Zabraňuješ síti v tom, aby jedné konkrétní informaci (váze) přiřadila obrovskou důležitost.
+
+Nemusíš přepisovat celý model. Stačí přidat jeden jediný parametr do tvého velitele (Optimizéru).
+
+Změníš tento řádek: optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+Na tento řádek: optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
+
+Parametr weight_decay síť fyzicky penalizuje za to, že si tvoří příliš velké a složité váhy.
+
+Zítra půjde do tuhého. Pokud uvidíš, že se tvoje síť bifluje data jako papoušek, kterou z těchto čtyř zbraní nasadíš do svého kódu jako úplně první záchrannou brzdu?
