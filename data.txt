@@ -1,0 +1,67 @@
+Konečně otázka hodná velitele! Tohle není jen detail v kódu, tady jsi právě narazil na smrtelnou past, do které zítra zahučí polovina tvých soupeřů.
+
+Pokud máš CSV se třemi sloupci, kde první je ID (např. 0, 1, 2...), druhý je nějaká naměřená hodnota a třetí je cíl (správná odpověď), musíš zasáhnout s chirurgickou přesností.
+
+Zlaté pravidlo o ID: Je to jed!
+Neuronová síť je tupý matematický drtič. Pokud vezmeš to ID (číslo řádku) a narveš jí ho do vstupu společně s daty, síť si řekne: "Aha! Všiml jsem si, že když je ID větší než 500, je to vždycky člověk!" Tohle je absolutní katastrofa! Síť se neučí z dat, ale učí se nazpaměť čísla řádků. Až jí zítra podstrčíš testovací data s novými IDčky, úplně selže. ID nesmí nikdy, za žádných okolností, vstoupit do výpočtu neuronové sítě (do tensoru x).
+
+Jak to rozříznout v kódu
+Tady je přesná ukázka, jak zítra upravíš toho svého logistického pěšáka (metodu __getitem__), aby tu tabulku správně rozporcoval. Python má na to geniální zbraň: Slicing (krájení seznamů).
+
+Python
+    def __getitem__(self, idx):
+        # 1. Voják vytáhne celý surový řádek z Pandas (všechny 3 sloupce)
+        radek = self.data.iloc[idx]
+        
+        # 2. Oddělení zrna od plev
+        # Index 0 je první sloupec (Tvoje ID)
+        id_zaznamu = radek.values[0] 
+        
+        # Index 1 až do předposledního jsou tvé vstupy
+        # [1:-1] znamená: "Vezmi vše od druhého sloupce a zastav těsně před posledním"
+        vstupy = radek.values[1:-1]  
+        x = torch.tensor(vstupy, dtype=torch.float32)
+
+        # 3. Křižovatka: Trénink nebo Ostrá mise?
+        if self.is_test:
+            # U testu to ID KRITICKY POTŘEBUJEŠ! 
+            # Síť dostane 'x', ale ty dostaneš zpět 'id_zaznamu', 
+            # abys věděl, ke kterému ID máš ten odhad do CSV zapsat.
+            return x, id_zaznamu
+
+        # 4. Pokud trénujeme, vytáhneme správnou odpověď
+        # Index -1 je vždy absolutně poslední sloupec (Cíl / Y)
+        cil = radek.values[-1]
+        y = torch.tensor(cil, dtype=torch.long) # Použij float32, pokud hádáš desetinné číslo
+        
+        return x, y
+Proč je tohle řešení neprůstřelné?
+Kód radek.values[1:-1] je univerzální obrněnec.
+
+Pokud máš 3 sloupce (ID, Data, Cíl), vezme to přesně jen ten prostřední (index 1).
+
+Pokud máš zítra 100 sloupců (ID, 98 sloupců dat, Cíl), ten samý kód naprosto bezchybně přeskočí první sloupec, vezme všech 98 datových sloupců a poslední ignoruje, protože si ho nechává pro cíl y. Nemusíš nic přepisovat.
+
+Vydržíš s tímhle zítra až do konce? A teď mi ukaž, jestli chápeš, jak to krájení funguje: Jak bys upravil ten zápis vstupy = radek.values[1:-1], kdyby to zítřejší CSV mělo prvních pět sloupců jako zbytečný text (ID, Jméno, Město, Datum, Čas) a až od šestého sloupce by začínala ta užitečná číselná data pro síť?
+
+
+
+ŘÁDKY?! Sloupce, bažante, SLOUPCE!Kdy už si konečně zapamatuješ rozdíl mezi horizontálním a vertikálním směrem?! Horizontálně jsou řádky (tvoje jednotlivá měření), vertikálně jsou sloupce (vlastnosti jako ID, poloha, čas). Pleteš si základní terminologii, s tímhle by tě u odvodní komise hnali bičem!Ale budiž, analyzujeme tvoji situaci. Podívej se na to, co jsi právě řekl, a zapoj mozek: Máš tam id (číslo bodu), $x$ (poloha) a $t$ (čas). Chybí ti tam $u$ (teplota)! Co to znamená z taktického hlediska? Znamená to, že v rukou držíš testovací data (test_points.csv). V tomto souboru neexistuje absolutně žádná správná odpověď. Jsou to data určená výhradně pro ostrou palbu, kde musíš teplotu teprve předpovědět a zapsat do finálního submission.csv.Tady je tvůj operační postup, jak přesně tohle rozkrájet v kódu. Je to jiné než u tréninku!Kritická změna v krájení (Slicing)Pokud bys na tabulku [id, x, t] použil ten můj předchozí kód vstupy = radek.values[1:-1], zbraň ti okamžitě selže. Proč? Protože by to vzalo index 1 ($x$), ale useklo by to poslední index ($t$). Do sítě bys poslal jen polohu a čas bys ztratil.Takhle to musí vypadat pro testovací data bez cílového sloupce:Python    def __getitem__(self, idx):
+        # 1. Voják vytáhne celý řádek: [id, x, t]
+        radek = self.data.iloc[idx]
+        
+        # 2. Vytáhni identifikační štítek
+        id_zaznamu = radek.values[0] 
+        
+        # 3. Vytáhni všechny vstupní parametry
+        # POZOR ZMĚNA: Použiješ [1:] (dvojtečka a za ní NIC)
+        # To znamená: "Vezmi vše od druhého sloupce až do úplného konce!"
+        vstupy = radek.values[1:]  
+        
+        # 4. Navleč to do uniformy Tensoru
+        x = torch.tensor(vstupy, dtype=torch.float32)
+
+        # 5. Návrat na základnu
+        # Žádné 'y' (cíl) neexistuje. Vracíš jen data a ID!
+        return x, id_zaznamu
+Co to znamená pro tvou zbraň (nn.Linear)Když voják provede tento extrakční manévr radek.values[1:], přinese v Tensoru x přesně dvě hodnoty (polohu $x$ a čas $t$).Tvoje vstupní hlaveň v definici modelu se tomu musí absolutně a bezpodmínečně přizpůsobit. Bude vypadat takto a nijak jinak:nn.Linear(2, 64)První číslo je 2, protože ti dovnitř tečou dva údaje. Pokud tam zítra ze zvyku necháš desítku z mé univerzální šablony, zítřejší bitva pro tebe skončí přesně v momentě, kdy ji začneš.Tohle je tvůj finální dril. Vymlať si ze slovníku slovo "řádek", když myslíš "sloupec", kontroluj rozměry matic jako svůj vlastní tep a vždycky si předem zjisti, jestli tvá data obsahují cíl, nebo ne. Rozchod na ubikace a zítra na bojišti očekávám maximální nasazení. Konec hlášení.
